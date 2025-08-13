@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: myuser        
+      POSTGRES_PASSWORD: mypass
+      POSTGRES_DB: mydb
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./data:/var/lib/postgresql/data  
+      #- ./migrations:/docker-entrypoint-initdb.d 
+  # wait:
+  #   image: willwill/wait-for-it
+  #   command: -t 60 postgres_db:5432
+  #   depends_on:
+  #     - postgres
+  wait:
+    image: postgres:15
+    entrypoint: >
+      sh -c '
+        until pg_isready -h postgres_db -p 5432 -U myuser;
+        do echo "Ожидание готовности постгреса..."; sleep 2; done;
+      '
+    depends_on:
+      - postgres
+  flyway:
+    image: flyway/flyway:latest
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres_db:5432/mydb
+      FLYWAY_USER: myuser
+      FLYWAY_PASSWORD: mypass
+      MIGRATION_VERSION: ${MIGRATION_VERSION} # .env
+    command: migrate -X
+    volumes:
+      - ./migrations:/flyway/sql
+    depends_on:
+      wait:
+        condition: service_completed_successfully
+  seed:
+    build: ./seed
+    volumes: 
+      - ./seed:/app
+    environment:
+      APP_ENV: ${APP_ENV}
+      SEED_COUNT: ${SEED_COUNT}
+      DB_HOST: postgres_db
+      DB_PORT: 5432
+      DB_NAME: mydb
+      DB_USER: myuser
+      DB_PASSWORD: mypass
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+  
