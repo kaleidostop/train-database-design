@@ -3,24 +3,18 @@ services:
     image: postgres:15
     container_name: postgres_db
     environment:
-      POSTGRES_USER: myuser        
-      POSTGRES_PASSWORD: mypass
-      POSTGRES_DB: mydb
+      POSTGRES_USER: ${POSTGRES_USER}        
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5433:5432"
     volumes:
       - ./data:/var/lib/postgresql/data  
-      #- ./migrations:/docker-entrypoint-initdb.d 
-  # wait:
-  #   image: willwill/wait-for-it
-  #   command: -t 60 postgres_db:5432
-  #   depends_on:
-  #     - postgres
   wait:
     image: postgres:15
     entrypoint: >
       sh -c '
-        until pg_isready -h postgres_db -p 5432 -U myuser;
+        until pg_isready -h postgres_db -p 5432 -U ${POSTGRES_USER};
         do echo "Ожидание готовности постгреса..."; sleep 2; done;
       '
     depends_on:
@@ -28,11 +22,18 @@ services:
   flyway:
     image: flyway/flyway:latest
     environment:
-      FLYWAY_URL: jdbc:postgresql://postgres_db:5432/mydb
-      FLYWAY_USER: myuser
-      FLYWAY_PASSWORD: mypass
-      MIGRATION_VERSION: ${MIGRATION_VERSION} # .env
-    command: migrate -X
+      FLYWAY_URL: jdbc:postgresql://postgres_db:5432/${POSTGRES_DB}
+      FLYWAY_USER: ${POSTGRES_USER}    
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
+      MIGRATION_VERSION: ${MIGRATION_VERSION:-}
+    entrypoint: >
+      sh -c '
+        if [ -n "$MIGRATION_VERSION" ]; then
+          flyway migrate -X -target="$MIGRATION_VERSION";
+        else 
+          flyway migrate -X;
+        fi
+      '
     volumes:
       - ./migrations:/flyway/sql
     depends_on:
@@ -47,9 +48,9 @@ services:
       SEED_COUNT: ${SEED_COUNT}
       DB_HOST: postgres_db
       DB_PORT: 5432
-      DB_NAME: mydb
-      DB_USER: myuser
-      DB_PASSWORD: mypass
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER} 
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
       flyway:
         condition: service_completed_successfully

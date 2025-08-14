@@ -55,6 +55,26 @@ def get_dependencies(cur):
         graph[parent].add(child)
     return graph
 
+def get_fk_columns(cur):
+    cur.execute("""
+        SELECT
+            tc.table_name AS child_table,
+            kcu.column_name AS child_column,
+            ccu.table_name AS parent_table,
+            ccu.column_name AS parent_column
+        FROM information_schema.table_constraints AS tc
+        JOIN information_schema.key_column_usage AS kcu
+            ON tc.constraint_name = kcu.constraint_name
+        JOIN information_schema.constraint_column_usage AS ccu
+            ON ccu.constraint_name = tc.constraint_name
+        WHERE constraint_type = 'FOREIGN KEY';
+    """)
+    fk_cols = defaultdict(list)
+    for child_table, child_col, parent_table, parent_col in cur.fetchall():
+        fk_cols[child_table].append((child_col, parent_table, parent_col))
+    return fk_cols
+
+
 def topsort(tables, graph):
     in_deg = {t: 0 for t in tables}
     for p in graph:
@@ -81,38 +101,54 @@ def generate_value(col_name, col_type):
     elif col_type in ('numeric', 'integer', 'smallint', 'bigint'):
         return random.randint(1, 1000)
     elif col_type in ('timestamp without time zone', 'timestamp with time zone', 'date'):
-        return fake.date_between(start_date="-1y", end_date="today")
+        return faker.date_between(start_date="-1y", end_date="today")
     else:
         return None
 
-def seed_table(cur, table):
+def seed_table(cur, table, fk_columns, generated_fk_values):
     cur.execute("""
-        SELECT column_name, data_type
+        SELECT column_name, data_type, column_default
         FROM information_schema.columns
         WHERE table_name = %s
-        AND column_name NOT LIKE %s
         ORDER BY ordinal_position;    
-        """, (table, '%id'))
+        """, (table, ))
     columns = cur.fetchall()
 
     if not columns:
         print(f"В таблице {table} нет колонок")
 
-    col_names = [c[0] for c in columns]
-    placeholders = ", ".join(["%s"] * len(columns))
-    insert_sql = f"INSERT INTO {table} ({', '.join(col_names)}) VALUES ({placeholders})"
+    insert_columns = []
+    for col_name, col_type, col_default in columns:
+        if col_default and col_default.startswith("nextval"):  
+            continue
+        insert_columns.append((col_name, col_type))
+    placeholders = ", ".join(["%s"] * len(insert_columns))
+    insert_sql = f"INSERT INTO {table} ({', '.join(c[0] for c in insert_columns)}) VALUES ({placeholders}) RETURNING *;"
 
     for _ in range(seed_count):
         values = []
-        for col_name, col_type in columns:
-            values.append(generate_value(col_name, col_type))
+        for col_name, col_type in insert_columns:
+            fk_info = next((fk for fk in fk_columns.get(table, []) if fk[0] == col_name), None)
+            if fk_info:
+                parent_table, parent_col = fk_info[1], fk_info[2]
+                #print(f"parent table: {parent_table}, parent col: {parent_col}")
+                possible_values = generated_fk_values.get((parent_table, parent_col), [])
+                if possible_values:
+                    values.append(random.choice(possible_values))
+                else:
+                    values.append(None) 
+            else:
+                values.append(generate_value(col_name, col_type))
+
         cur.execute(insert_sql, values)
+        inserted_row = cur.fetchone()
 
-
-def seed_all_tables(cur):
-    tables = get_tables(cur)
-    for table in tables:
-        seed_table(cur, table)
+        for idx, (col_name, _, _) in enumerate(columns):
+            if (table, col_name) in generated_fk_values:
+                #print(f"table: {table}, col name: {col_name}")
+                generated_fk_values[(table, col_name)].append(inserted_row[idx])
+            #else:
+                #print(f"table: {table}, col name: {col_name} -- not FK")
 
 
 if __name__ == "__main__":
@@ -133,17 +169,27 @@ if __name__ == "__main__":
             port=db_port
         )
         cur = conn.cursor()
-
+        
         tables = get_tables(cur)
-        graph = get_dependencies(cur)
-        order = topsort(tables, graph)
+        dependencies = get_dependencies(cur)
+        order = topsort(tables, dependencies)
+
+        fk_columns = get_fk_columns(cur)
+        generated_fk_values = dict.fromkeys(
+            ((fk[1], fk[2])  # parent_table, parent_column
+            for fks in fk_columns.values()
+            for fk in fks),
+            []
+        )
+
+        #print(*generated_fk_values.keys())
 
         for t in reversed(order):
             cur.execute(f"TRUNCATE TABLE {t} RESTART IDENTITY CASCADE;")
             print(f"Таблица {t} очищена")
 
         for t in order:
-            seed_table(cur, t)
+            seed_table(cur, t, fk_columns, generated_fk_values)
             print(f"Добавлено {seed_count} записей в таблицу {t}.")
 
         conn.commit()
