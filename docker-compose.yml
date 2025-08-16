@@ -54,4 +54,20 @@ services:
     depends_on:
       flyway:
         condition: service_completed_successfully
-  
+  create-analytic-roles:
+    image: postgres:15
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGUSER: ${POSTGRES_USER}
+      PGDATABASE: ${POSTGRES_DB}
+      PGHOST: postgres_db
+      ANALYST_NAMES: ${ANALYST_NAMES}
+    volumes:
+      - ./admin:/admin
+    entrypoint: >
+      sh -c '
+        psql -v ANALYST_NAMES=${ANALYST_NAMES} -v ON_ERROR_STOP=1 -v DB_NAME=${POSTGRES_DB} -d ${POSTGRES_DB} -f /admin/create_analytic_roles.sql
+      '
+    depends_on:
+      seed:
+        condition: service_completed_successfully
