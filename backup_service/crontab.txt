@@ -1,0 +1,4 @@
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+${BACKUP_INTERVAL_CRON} root PGHOST=${PGHOST} PGUSER=${PGUSER} PGDATABASE=${PGDATABASE} PGPASSWORD=${PGPASSWORD} BACKUP_RETENTION_COUNT=${BACKUP_RETENTION_COUNT} TZ=${TZ} /app/backup.sh 2>&1 | tee -a /var/log/backup.log

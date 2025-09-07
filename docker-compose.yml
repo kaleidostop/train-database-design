@@ -1,44 +1,48 @@
 services:
   postgres:
     image: postgres:15
-    container_name: postgres_db
+    container_name: ${POSTGRES_HOST}
     environment:
       POSTGRES_USER: ${POSTGRES_USER}        
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5433:5432"
+      - "5433:${POSTGRES_PORT}"
     volumes:
       - ./data:/var/lib/postgresql/data  
   wait:
     image: postgres:15
     entrypoint: >
       sh -c '
-        until pg_isready -h postgres_db -p 5432 -U ${POSTGRES_USER};
+        until pg_isready -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER};
         do echo "Ожидание готовности постгреса..."; sleep 2; done;
       '
     depends_on:
       - postgres
+
   flyway:
     image: flyway/flyway:latest
     environment:
-      FLYWAY_URL: jdbc:postgresql://postgres_db:5432/${POSTGRES_DB}
+      FLYWAY_URL: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       FLYWAY_USER: ${POSTGRES_USER}    
       FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
       MIGRATION_VERSION: ${MIGRATION_VERSION:-}
     entrypoint: >
       sh -c '
-        if [ -n "$MIGRATION_VERSION" ]; then
+        if [ $# -gt 0 ]; then
+          exec flyway "$@"
+        elif [ -n "$MIGRATION_VERSION" ]; then
           flyway migrate -X -target="$MIGRATION_VERSION";
         else 
           flyway migrate -X;
         fi
-      '
+      ' --
     volumes:
       - ./migrations:/flyway/sql
     depends_on:
       wait:
         condition: service_completed_successfully
+
   seed:
     build: ./seed
     volumes: 
@@ -46,21 +50,22 @@ services:
     environment:
       APP_ENV: ${APP_ENV}
       SEED_COUNT: ${SEED_COUNT}
-      DB_HOST: postgres_db
-      DB_PORT: 5432
+      DB_HOST: ${POSTGRES_HOST}
+      DB_PORT: ${POSTGRES_PORT}
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER} 
       DB_PASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
       flyway:
         condition: service_completed_successfully
+      
   create-analytic-roles:
     image: postgres:15
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGUSER: ${POSTGRES_USER}
       PGDATABASE: ${POSTGRES_DB}
-      PGHOST: postgres_db
+      PGHOST: ${POSTGRES_HOST}
       ANALYST_NAMES: ${ANALYST_NAMES}
     volumes:
       - ./admin:/admin
@@ -70,4 +75,70 @@ services:
       '
     depends_on:
       seed:
+        condition: service_completed_successfully
+    
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres_exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      wait:
+        condition: service_completed_successfully
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - postgres_exporter
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - ./grafana_data:/var/lib/grafana
+
+  backend:
+    build: ./backend_service
+    volumes: 
+      - ./backend_service:/app
+    environment:
+      APP_ENV: ${APP_ENV}
+      SEED_COUNT: ${SEED_COUNT}
+      DB_HOST: ${POSTGRES_HOST}
+      DB_PORT: ${POSTGRES_PORT}
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER} 
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      wait:
+        condition: service_completed_successfully
+
+  backups:
+    build: ./backup_service
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGUSER: ${POSTGRES_USER}
+      PGDATABASE: ${POSTGRES_DB}
+      PGHOST: ${POSTGRES_HOST}
+      TZ: Europe/Moscow
+      BACKUP_INTERVAL_CRON: ${BACKUP_INTERVAL_CRON}
+      BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT}
+    volumes:
+      - ./backup_service/backups:/backups 
+    depends_on:
+      wait:
         condition: service_completed_successfully

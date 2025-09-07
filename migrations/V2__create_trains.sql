@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS Trains (
 	train_id serial primary key,
 	type int references TrainTypes(train_types_id),
-    number varchar(255),
+    number int,
     total_carriages int,
     total_seats int
 );
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS StationVisit (
 CREATE TABLE IF NOT EXISTS Carriages (
 	carriage_id serial primary key,
 	train_id int references Trains(train_id), 
-	number varchar(255),
+	number int,
 	capacity int,
 	carriage_class_id int references CarriageClasses(carriage_class_id)
 );
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS Carriages (
 CREATE TABLE IF NOT EXISTS Seats (
 	seat_id serial primary key,
 	carriage_id int references Carriages(carriage_id), 
-	number varchar(255),
+	number int,
 	description varchar(255),
 	availability varchar(255)
 );
