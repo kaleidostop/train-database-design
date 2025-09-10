@@ -10,15 +10,13 @@ services:
       - "${POSTGRES_HOST_PORT}:${POSTGRES_PORT}"
     volumes:
       - ./data:/var/lib/postgresql/data  
-  wait:
-    image: postgres:15
-    entrypoint: >
-      sh -c '
-        until pg_isready -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER};
-        do echo "Ожидание готовности постгреса..."; sleep 2; done;
-      '
-    depends_on:
-      - postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h 127.0.0.1 -c 'SELECT 1' >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
 
   flyway:
     image: flyway/flyway:latest
@@ -38,10 +36,10 @@ services:
         fi
       ' --
     volumes:
-      - ./migrations:/flyway/sql
+      - ./migrations:/flyway/sql:ro
     depends_on:
-      wait:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
 
   seed:
     build: ./seed
@@ -56,6 +54,8 @@ services:
       DB_USER: ${POSTGRES_USER} 
       DB_PASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
+      postgres:
+        condition: service_healthy
       flyway:
         condition: service_completed_successfully
       
@@ -68,13 +68,15 @@ services:
       PGHOST: ${POSTGRES_HOST}
       ANALYST_NAMES: ${ANALYST_NAMES}
     volumes:
-      - ./admin:/admin
+      - ./roles:/roles:ro
     entrypoint: >
       sh -c '
-        psql -v ANALYST_NAMES=${ANALYST_NAMES} -v ON_ERROR_STOP=1 -f /admin/create_analytic_roles.sql
+        psql -v ANALYST_NAMES=${ANALYST_NAMES} -v ON_ERROR_STOP=1 -f /roles/create_analytic_roles.sql
       '
     depends_on:
-      seed:
+      postgres:
+        condition: service_healthy
+      flyway:
         condition: service_completed_successfully
     
   postgres_exporter:
@@ -82,19 +84,35 @@ services:
     container_name: postgres_exporter
     environment:
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
+      PG_EXPORTER_EXTEND_QUERY_PATH: /queries/extra.yml
     ports:
       - "9187:9187"
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/extra.yml:/queries/extra.yml:ro
     depends_on:
-      wait:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  node_exporter:
+    image: prom/node-exporter:v1.8.1
+    container_name: node_exporter
+    restart: unless-stopped
+    command: []
 
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
     ports:
       - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
     depends_on:
       - postgres_exporter
 
@@ -106,15 +124,14 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
     ports:
       - "3000:3000"
-    depends_on:
-      - prometheus
+    restart: unless-stopped
     volumes:
       - ./grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
 
   backend:
-    build: ./backend_service
-    volumes: 
-      - ./backend_service:/app
+    build: ./backend
     environment:
       APP_ENV: ${APP_ENV}
       SEED_COUNT: ${SEED_COUNT}
@@ -123,12 +140,17 @@ services:
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER} 
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: 
+      - ./backend:/app:ro
+    restart: unless-stopped
     depends_on:
-      wait:
+      postgres:
+        condition: service_healthy
+      seed:
         condition: service_completed_successfully
 
   backups:
-    build: ./backup_service
+    build: ./backup
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGUSER: ${POSTGRES_USER}
@@ -138,7 +160,14 @@ services:
       BACKUP_INTERVAL_CRON: ${BACKUP_INTERVAL_CRON}
       BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT}
     volumes:
-      - ./backup_service/backups:/backups 
+      - ./backup/backups:/backups 
+    restart: unless-stopped
     depends_on:
-      wait:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+
+volumes:
+  prometheus-data:
+#   pgdata:
+#   grafana-data:

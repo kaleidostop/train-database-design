@@ -1,0 +1,34 @@
+pg_table_sizes:
+  query: |
+    SELECT
+      current_database() AS datname,
+      relname,
+      pg_relation_size(relid) AS table_bytes,
+      pg_total_relation_size(relid) - pg_relation_size(relid) AS index_bytes,
+      pg_total_relation_size(relid) AS total_bytes
+    FROM pg_catalog.pg_statio_user_tables;
+
+  metrics:
+    - datname:
+        usage: "LABEL"
+        description: "Database"
+    - relname:
+        usage: "LABEL"
+        description: "Table"
+    - table_bytes:
+        usage: "GAUGE"
+        description: "Table size (bytes)"
+    - index_bytes:
+        usage: "GAUGE"
+        description: "Indexes size (bytes)"
+    - total_bytes:
+        usage: "GAUGE"
+        description: "Total relation size (bytes)"
+
+pg_postgres_uptime:
+  query: |
+    SELECT EXTRACT(EPOCH FROM now() - pg_postmaster_start_time())::float AS uptime_seconds;
+  metrics:
+    - uptime_seconds:
+        usage: "GAUGE"
+        description: "PostgreSQL uptime (seconds)"

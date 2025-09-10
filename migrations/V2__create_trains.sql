@@ -1,7 +1,7 @@
 
 CREATE TABLE IF NOT EXISTS Trains (
 	train_id serial primary key,
-	type int references TrainTypes(train_types_id),
+	type_id int references TrainTypes(train_types_id),
     number int,
     total_carriages int,
     total_seats int

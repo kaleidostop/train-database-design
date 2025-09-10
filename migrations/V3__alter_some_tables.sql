@@ -1,13 +1,10 @@
-ALTER TABLE Trains 
-RENAME COLUMN type TO type_id;
-
 ALTER TABLE Trains
-DROP COLUMN total_carriages,
-DROP COLUMN total_seats,
-ADD COLUMN name varchar(255);
+DROP COLUMN IF EXISTS total_carriages,
+DROP COLUMN IF EXISTS total_seats,
+ADD COLUMN IF NOT EXISTS name varchar(255);
 
 ALTER TABLE Carriages
-DROP COLUMN capacity;
+DROP COLUMN IF EXISTS capacity;
 
 ALTER TABLE AgeCategories 
-DROP COLUMN price;
+DROP IF EXISTS COLUMN price;

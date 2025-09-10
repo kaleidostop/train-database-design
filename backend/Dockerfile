@@ -4,4 +4,4 @@ RUN pip install --no-cache-dir psycopg2-binary
 
 WORKDIR /app
 
-CMD ["python", "backend_service.py"]
+CMD ["python", "app.py"]

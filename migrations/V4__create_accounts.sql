@@ -54,9 +54,6 @@ CREATE TABLE IF NOT EXISTS Reviews (
     commentary varchar(255)
 );
 
-ALTER TABLE Reviews 
-ADD CONSTRAINT stars_values CHECK (stars BETWEEN 1 AND 5);
-
 CREATE TABLE IF NOT EXISTS Notifications (
     notifications_id serial primary key,
     account_id int references Accounts(account_id),
