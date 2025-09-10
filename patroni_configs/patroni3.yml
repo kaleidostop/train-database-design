@@ -1,0 +1,42 @@
+scope: ${CLUSTER_SCOPE}
+name: patroni3
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: patroni3:8008
+
+etcd3:
+  hosts: ["etcd:2379"]
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: patroni3:5432
+  data_dir: /var/lib/postgresql/data
+  authentication:
+    superuser:
+      username: postgres
+      password: postgres
+    replication:
+      username: replicator
+      password: replicator
+  parameters:
+    max_wal_size: 2GB
+    shared_buffers: 256MB
+    max_connections: 200
+    unix_socket_directories: '/tmp'
+    TimeZone: Europe/Moscow
+  pg_hba:
+    - host all all 0.0.0.0/0 md5
+    - host replication all 0.0.0.0/0 md5
+
+bootstrap:
+  dcs:
+    postgresql:
+      use_pg_rewind: true
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+  users:
+    myuser:
+      password: "mypassword"
+      options: ["CREATEDB"]
