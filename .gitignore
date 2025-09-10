@@ -1,3 +1,4 @@
 data/
 grafana_data/
+patroni_data/
 .env

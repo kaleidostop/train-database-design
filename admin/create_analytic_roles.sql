@@ -7,7 +7,7 @@ BEGIN
     END IF;
 END$$;
 
-GRANT CONNECT ON DATABASE :"DBNAME" TO analytic;
+EXECUTE format('GRANT CONNECT ON DATABASE %I TO analytic', current_database());
 GRANT USAGE ON SCHEMA public TO analytic;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO analytic;
 GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO analytic;

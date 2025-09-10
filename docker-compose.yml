@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5433:${POSTGRES_PORT}"
+      - "${POSTGRES_HOST_PORT}:${POSTGRES_PORT}"
     volumes:
       - ./data:/var/lib/postgresql/data  
   wait:
@@ -71,7 +71,7 @@ services:
       - ./admin:/admin
     entrypoint: >
       sh -c '
-        psql -v ANALYST_NAMES=${ANALYST_NAMES} -v ON_ERROR_STOP=1 -v DB_NAME=${POSTGRES_DB} -d ${POSTGRES_DB} -f /admin/create_analytic_roles.sql
+        psql -v ANALYST_NAMES=${ANALYST_NAMES} -v ON_ERROR_STOP=1 -f /admin/create_analytic_roles.sql
       '
     depends_on:
       seed:
@@ -134,7 +134,7 @@ services:
       PGUSER: ${POSTGRES_USER}
       PGDATABASE: ${POSTGRES_DB}
       PGHOST: ${POSTGRES_HOST}
-      TZ: Europe/Moscow
+      TZ: ${TIME_ZONE}
       BACKUP_INTERVAL_CRON: ${BACKUP_INTERVAL_CRON}
       BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT}
     volumes:
