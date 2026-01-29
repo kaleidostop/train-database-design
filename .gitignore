@@ -1,4 +1,6 @@
 data/
 grafana_data/
 patroni_data/
+backup/backups
 .env
+.idea/

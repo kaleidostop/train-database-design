@@ -42,8 +42,6 @@ TABLE_SIZES = {
     "bookingstatus" : 0
 }
 
-# unique_columns = [("passengers", "document_number"), ("accounts", "passenger_id"), ("accounts", "email"), ("accounts", "phone"), ("stationvisit", "station_order")]
-
 def wait_for_pg():
     while True:
         try:
@@ -135,7 +133,7 @@ def generate_value(table, col_name, col_type):
         elif col_name == 'password_hash':
             return faker.md5(raw_output=False) 
         elif col_name == 'gender':
-            return random.choice(('м', 'ж'))
+            return random.choice(('ж', 'м'))
         elif col_name == 'location':
             return faker.city()
         elif col_name in ('description', 'commentary', 'message'):
@@ -146,7 +144,7 @@ def generate_value(table, col_name, col_type):
             return random.randint(1, 5)
         return random.randint(1, 1000)
     elif col_type in ('timestamp without time zone', 'timestamp with time zone', 'date'):
-        return faker.date_between(start_date="-1y", end_date="today")
+        return faker.date_between(start_date="-70y", end_date="today")
     else:
         return None
 
@@ -181,7 +179,6 @@ def seed_table(cur, table, fk_columns, generated_fk_values):
             fk_info = next((fk for fk in fk_columns.get(table, []) if fk[0] == col_name), None)
             if fk_info:
                 parent_table, parent_col = fk_info[1], fk_info[2]
-                #print(f"parent table: {parent_table}, parent col: {parent_col}")
                 possible_values = generated_fk_values.get((parent_table, parent_col), [])
                 if possible_values:
                     values.append(random.choice(possible_values))
@@ -195,10 +192,7 @@ def seed_table(cur, table, fk_columns, generated_fk_values):
 
         for idx, (col_name, _, _) in enumerate(columns):
             if (table, col_name) in generated_fk_values:
-                # print(f"table: {table}, col name: {col_name}")
                 generated_fk_values[(table, col_name)].append(inserted_row[idx])
-            # else:
-            #     print(f"table: {table}, col name: {col_name} -- not FK")
 
 
 if __name__ == "__main__":
@@ -231,15 +225,6 @@ if __name__ == "__main__":
             for fks in fk_columns.values()
             for fk in fks
         }
-        
-        # dict.fromkeys(
-        #     ((fk[1], fk[2])  # parent_table, parent_column
-        #     for fks in fk_columns.values()
-        #     for fk in fks),
-        #     []
-        # )
-
-        # print(*generated_fk_values.keys())
 
         for t in reversed(order):
             cur.execute(f"TRUNCATE TABLE {t} RESTART IDENTITY CASCADE;")

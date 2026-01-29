@@ -1,0 +1,184 @@
+@startuml
+entity "Accounts" {
+    * account_id : int
+    email : varchar(255)
+    phone : varchar(20)
+    password_hash : varchar(255)
+    passenger_id : int <<FK>>
+}
+
+entity "Passengers" {
+    * passenger_id : int
+    full_name : varchar(255)
+    date_of_birth : date
+    gender : char(1)
+    document_number : varchar(10)
+    age_category_id : int <<FK>>
+}
+
+entity "Trains" {
+    * train_id : int
+    + type_id : int <<FK>>
+    + number : varchar(255)
+    + name : varchar(255)
+}
+
+entity "Routes" {
+    * route_id : int
+    + from_station_id : int <<FK>>
+    + to_station_id : int <<FK>>
+    + distance : int
+}
+
+entity "Schedules" {
+    * schedule_id : int
+    + train_id : int <<FK>>
+    + route_id : int <<FK>>
+    + departure_time : datetime
+    + arrival_time : datetime
+}
+
+entity "Stations" {
+    * station_id : int
+    + name : varchar(255)
+    + location : varchar(255)
+}
+
+entity "StationVisit" {
+  * station_visit_id : int
+  + schedule_id : int <<FK>>
+  + station_id : int <<FK>>
+  + order : int
+  + arrival_time : datetime
+  + departure_time : datetime
+}
+
+entity "Bookings" {
+    * booking_id : int
+    + customer_id : int <<FK>>
+    + schedule_id : int <<FK>>
+    + from_station_id : int <<FK>>
+    + to_station_id : int <<FK>>
+    + booking_date : date
+    + payment_id : int <<FK>>
+    + status : int <<FK>>
+}
+
+entity "BookingStatus" {
+   * booking_status_id : int
+   + name : varchar(255)
+}
+
+entity "Carriages" {
+  * carriage_id : int
+  + train_id : int <<FK>>
+  + number : varchar(255)
+  + carriage_class_id : int <<FK>>
+}
+
+entity "Prices" {
+  * price_id : int
+  + schedule_id : int <<FK>>
+  + carriage_class_id : int <<FK>>
+  + age_category_id : int <<FK>>
+  + price : decimal 
+}
+
+entity "Seats" {
+  * seat_id : int
+  + carriage_id : int <<FK>>
+  + number : varchar(255)
+  + description : varchar(255)
+  + availability : varchar(255)
+}
+
+entity "TrainTypes" {
+    * train_types_id : int
+    + name : varchar(255)
+    + description : varchar(255)
+}
+
+entity "CarriageClass" {
+    * carriage_class_id : int
+    + name : varchar(255)
+    + description : varchar(255)
+}
+
+entity "Reviews" {
+    * review_id : int
+    + account_id : int <<FK>>
+    + train_id : int <<FK>>
+    + stars : int
+    + commentary : varchar(255)
+}
+
+entity "Notifications" { 
+  * notification_id : int
+  + account_id : int <<FK>> 
+  + message : varchar(255)
+  + status : varchar(255)
+  + datetime : datetime 
+}
+
+entity "TravelHistory" {
+    * travel_history_id : int
+    + passenger_id : int <<FK>>
+    + train_id : int <<FK>>
+    + date : date
+}
+
+entity "BookedSeats" {
+  * booked_seats_id : int
+  + booking_id : int <<FK>>
+  + passenger_id : int <<FK>>
+  + seat_id : int <<FK>>
+}
+
+entity "AgeCategories" {
+  * age_category_id : int
+  + name : varchar(255)
+}
+
+entity "Payments" {
+    * payment_id : int
+    + booking_id : int <<FK>>
+    + amount : decimal
+    + payment_method_id : int <<FK>>
+}
+
+entity "PaymentMethods" {
+    * payment_method_id : int
+    + name : varchar(255)
+    + description : varchar(255)
+}
+
+Passengers -- Accounts : "имеет"
+Passengers }o-- AgeCategories : "принадлежит"
+Passengers --o{ Bookings : "совершает"
+Passengers --o{ BookedSeats : "имеет"
+Trains --o{ Schedules : "следует"
+Schedules --o{ StationVisit : "содержит"
+StationVisit }o-- Stations : "посещает"
+Schedules }o-- Routes : "реализует"
+Trains }o-- Carriages : "имеет"
+Carriages --o{ Seats : "имеет"
+Carriages }o-- CarriageClass : "принадлежит"
+Trains }o-- TrainTypes : "принадлежит"
+Accounts --o{ Reviews : "оставляет"
+Trains --o{ Reviews : "получает"
+Accounts --o{ Notifications : "получает"
+Bookings }o-- BookingStatus : "имеет"
+Passengers --o{ TravelHistory : "имеет"
+Trains --o{ TravelHistory
+Bookings -- Payments : "оплачивается"
+Prices }o-- Schedules : "определяется"
+Prices }o-- CarriageClass : "определяется"
+Prices }o-- AgeCategories : "определяется"
+Payments }o-- PaymentMethods : "принадлежит"
+Routes }o-- Stations
+BookedSeats }o-- Bookings : "содержит"
+BookedSeats }o-- Seats : "бронируется"
+Bookings }o--|| Stations
+Bookings }o--|| Schedule
+
+@enduml

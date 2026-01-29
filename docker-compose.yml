@@ -71,7 +71,7 @@ services:
       - ./roles:/roles:ro
     entrypoint: >
       sh -c '
-        psql -v ANALYST_NAMES=${ANALYST_NAMES} -v ON_ERROR_STOP=1 -f /roles/create_analytic_roles.sql
+        psql -v ANALYST_NAMES=${ANALYST_NAMES} -v DB_NAME=${POSTGRES_DB} -v ON_ERROR_STOP=1 -f /roles/create_analytic_roles.sql
       '
     depends_on:
       postgres:
@@ -169,5 +169,3 @@ services:
 
 volumes:
   prometheus-data:
-#   pgdata:
-#   grafana-data:

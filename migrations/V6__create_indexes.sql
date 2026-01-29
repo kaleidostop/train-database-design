@@ -1,5 +1,5 @@
 -- индекс для ускорения поиска пассажира по аккаунту
-CREATE INDEX IF NOT EXISTS idx_passengers_account_id ON Passengers(account_id);
+CREATE INDEX IF NOT EXISTS idx_passengers_account_id ON Accounts(passenger_id);
 
 -- индекс для поиска бронирований по рейсу
 CREATE INDEX IF NOT EXISTS idx_bookings_schedule_id ON Bookings(schedule_id);
@@ -18,6 +18,3 @@ CREATE INDEX IF NOT EXISTS idx_bookedseats_booking_passenger ON BookedSeats(book
 
 -- индекс для проверки занято ли место
 CREATE INDEX IF NOT EXISTS idx_bookedseats_seat_id ON BookedSeats(seat_id);
-
--- индекс для поиск конкретного места в вагоне
-CREATE UNIQUE IF NOT EXISTS INDEX idx_seats_carriage_number ON Seats(carriage_id, number);
